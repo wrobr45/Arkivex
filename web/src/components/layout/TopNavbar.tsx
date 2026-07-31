@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Search, UploadCloud, Bell, Sparkles, Shield, User } from "lucide-react";
+import { Search, UploadCloud, Bell, Sparkles, Shield } from "lucide-react";
 import { currentUser as fallbackUser } from "../../lib/mockData";
 import { UserProfile } from "../../types";
 
@@ -45,26 +45,26 @@ export default function TopNavbar({ onOpenUpload, onOpenSearch, sidebarCollapsed
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-6 transition-all duration-300 ${
+      className={`fixed top-0 right-0 z-40 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 transition-all duration-300 ${
         sidebarCollapsed ? "left-0 md:left-20" : "left-0 md:left-64"
       }`}
     >
-      {/* Search Bar Input */}
-      <div className="flex-1 max-w-xl">
+      {/* Search Bar Input - Fluid Mobile */}
+      <div className="flex-1 max-w-[200px] sm:max-w-md lg:max-w-xl mr-2">
         <button
           onClick={onOpenSearch}
-          className="w-full flex items-center gap-3 px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 hover:border-emerald-500 text-slate-500 hover:text-slate-900 transition-all text-xs font-medium group"
+          className="w-full flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 hover:border-emerald-500 text-slate-500 hover:text-slate-900 transition-all text-xs font-medium group"
         >
-          <Search className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
-          <span className="truncate">Search OCR text, AI meaning, tags, contracts, invoices...</span>
-          <kbd className="hidden sm:inline-block ml-auto px-2 py-0.5 text-[10px] font-mono bg-white text-slate-600 rounded border border-slate-200 shadow-xs">
+          <Search className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors flex-shrink-0" />
+          <span className="truncate text-left">Search OCR text, AI meaning, tags...</span>
+          <kbd className="hidden sm:inline-block ml-auto px-2 py-0.5 text-[10px] font-mono bg-white text-slate-600 rounded border border-slate-200 shadow-xs flex-shrink-0">
             ⌘ K
           </kbd>
         </button>
       </div>
 
       {/* Right Action Menu */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
         {/* AI Quick Prompt */}
         <a
           href="/ai-workspace"
@@ -77,22 +77,21 @@ export default function TopNavbar({ onOpenUpload, onOpenSearch, sidebarCollapsed
         {/* Quick Upload Button */}
         <button
           onClick={onOpenUpload}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl btn-green text-white text-xs font-bold shadow-green"
+          className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl btn-green text-white text-xs font-bold shadow-green"
         >
-          <UploadCloud className="w-4 h-4" />
+          <UploadCloud className="w-4 h-4 flex-shrink-0" />
           <span className="hidden sm:inline">Quick Upload</span>
         </button>
 
         {/* Notifications Icon */}
-        <button className="relative w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-700 transition-colors">
+        <button className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-700 transition-colors">
           <Bell className="w-4 h-4" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-500" />
         </button>
 
         {/* Real User Profile Display */}
-        <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
-          <div className="w-9 h-9 rounded-xl overflow-hidden border border-emerald-500/40 relative bg-emerald-50 flex items-center justify-center shadow-xs">
+        <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-200">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden border border-emerald-500/40 relative bg-emerald-50 flex items-center justify-center shadow-xs flex-shrink-0">
             {user.avatar ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
