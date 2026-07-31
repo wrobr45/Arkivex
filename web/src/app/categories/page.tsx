@@ -6,7 +6,15 @@ import DocumentInspector from "../../components/documents/DocumentInspector";
 import UploadModal from "../../components/documents/UploadModal";
 import { DocumentItem } from "../../types";
 
-const INITIAL_CATEGORIES = [
+interface CategoryType {
+  id: string;
+  name: string;
+  description: string;
+  docCount: number;
+  isCustom?: boolean;
+}
+
+const INITIAL_CATEGORIES: CategoryType[] = [
   { id: "cat-1", name: "Legal", description: "Contracts, NDAs, Master Services Agreements", docCount: 0 },
   { id: "cat-2", name: "Finance", description: "Invoices, Audits, Financial Statements", docCount: 0 },
   { id: "cat-3", name: "Human Resources", description: "Employee Records & Offer Letters", docCount: 0 },
@@ -17,7 +25,7 @@ const INITIAL_CATEGORIES = [
 ];
 
 export default function CategoriesExplorer() {
-  const [categories, setCategories] = useState<any[]>(INITIAL_CATEGORIES);
+  const [categories, setCategories] = useState<CategoryType[]>(INITIAL_CATEGORIES);
   const [activeCategory, setActiveCategory] = useState<string>("Legal");
   const [categoryDocs, setCategoryDocs] = useState<DocumentItem[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
@@ -49,7 +57,7 @@ export default function CategoriesExplorer() {
     setLoading(true);
     const userEmail = getUserEmail();
 
-    let allCategories = [...INITIAL_CATEGORIES];
+    let allCategories: CategoryType[] = [...INITIAL_CATEGORIES];
 
     // Read custom saved categories from localStorage
     try {
