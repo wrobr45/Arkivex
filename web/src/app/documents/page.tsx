@@ -11,25 +11,27 @@ import {
   Search,
   Grid,
   List,
-  ChevronRight,
   UploadCloud,
   Inbox,
   Lock,
   Eye,
-  Trash2,
-  Share2,
   Folder,
   Layers,
-  Calendar,
   Clock,
-  Shield,
   HardDrive,
   Filter,
-  Plus,
-  Sparkles,
   Tag,
-  CheckCircle2,
 } from "lucide-react";
+
+const DEFAULT_CATEGORIES = [
+  "Legal",
+  "Finance",
+  "Human Resources",
+  "Licenses",
+  "Taxes",
+  "Purchase",
+  "Intellectual Property",
+];
 
 export default function DocumentCenter() {
   const [userEmail, setUserEmail] = useState("guest@arkivex.io");
@@ -41,7 +43,7 @@ export default function DocumentCenter() {
   const [viewMode, setViewMode] = useState<"shelves" | "grid" | "table">("shelves");
 
   // Dynamic Categories and Documents State
-  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [categories, setCategories] = useState<string[]>(["All", ...DEFAULT_CATEGORIES]);
   const [realDocs, setRealDocs] = useState<DocumentItem[]>([]);
   const [stats, setStats] = useState<{ storage_used_mb: number; total_documents: number }>({
     storage_used_mb: 0,
@@ -49,21 +51,34 @@ export default function DocumentCenter() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Fetch Categories from Backend API
   const fetchCategories = async (email: string) => {
+    let catNames = ["All", ...DEFAULT_CATEGORIES];
+
+    // Read custom categories saved by user
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/categories?user_email=${encodeURIComponent(email)}`);
-      const data = await res.json();
-      if (data.categories) {
-        const catNames = ["All", ...data.categories.map((c: any) => c.name)];
-        setCategories(catNames);
-      }
-    } catch (e) {
-      console.error("Failed to fetch dynamic categories", e);
+      const savedCats = JSON.parse(localStorage.getItem(`arkivex_categories_${email}`) || "[]");
+      savedCats.forEach((c: string) => {
+        if (!catNames.includes(c)) catNames.push(c);
+      });
+    } catch (e) {}
+
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/api/v1/categories?user_email=${encodeURIComponent(email)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.categories) {
+            data.categories.forEach((c: any) => {
+              if (!catNames.includes(c.name)) catNames.push(c.name);
+            });
+          }
+        }
+      } catch (e) {}
     }
+
+    setCategories(catNames);
   };
 
-  // Fetch Documents & Repository Stats
   const fetchDocsAndStats = async () => {
     setLoading(true);
     const email = getCurrentUserEmail();
@@ -71,26 +86,64 @@ export default function DocumentCenter() {
 
     await fetchCategories(email);
 
+    let allDocs: DocumentItem[] = [];
+
+    // 1. Fetch saved client documents from localStorage
     try {
-      // 1. Fetch Documents
-      const url = new URL("http://127.0.0.1:8000/api/v1/documents");
-      url.searchParams.append("user_email", email);
-      if (selectedCategory !== "All") url.searchParams.append("category", selectedCategory);
-      if (searchQuery) url.searchParams.append("search", searchQuery);
+      const localDocs = JSON.parse(localStorage.getItem(`arkivex_user_docs_${email}`) || "[]");
+      allDocs = [...localDocs];
+    } catch (e) {}
 
-      const res = await fetch(url.toString());
-      const data = await res.json();
-      setRealDocs(data.documents || []);
-
-      // 2. Fetch Stats
-      const statsRes = await fetch(`http://127.0.0.1:8000/api/v1/stats?user_email=${encodeURIComponent(email)}`);
-      const statsData = await statsRes.json();
-      setStats(statsData);
-    } catch (e) {
-      console.error("Failed to fetch repository data", e);
-    } finally {
-      setLoading(false);
+    // 2. Fetch documents from backend if locally running
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      try {
+        const url = new URL("http://127.0.0.1:8000/api/v1/documents");
+        url.searchParams.append("user_email", email);
+        const res = await fetch(url.toString());
+        if (res.ok) {
+          const data = await res.json();
+          const serverDocs = data.documents || [];
+          serverDocs.forEach((sd: DocumentItem) => {
+            if (!allDocs.some((d) => d.id === sd.id)) {
+              allDocs.push(sd);
+            }
+          });
+        }
+      } catch (e) {}
     }
+
+    // Filter by selected category
+    if (selectedCategory !== "All") {
+      allDocs = allDocs.filter((d) => d.category === selectedCategory);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      allDocs = allDocs.filter(
+        (d) =>
+          d.title.toLowerCase().includes(q) ||
+          (d.aiSummary && d.aiSummary.toLowerCase().includes(q)) ||
+          (d.category && d.category.toLowerCase().includes(q))
+      );
+    }
+
+    setRealDocs(allDocs);
+
+    // Calculate total storage MB
+    let totalMB = 0;
+    allDocs.forEach((d) => {
+      const match = d.fileSize ? d.fileSize.match(/([\d.]+)\s*MB/i) : null;
+      if (match) totalMB += parseFloat(match[1]);
+      else totalMB += 1.5;
+    });
+
+    setStats({
+      storage_used_mb: parseFloat(totalMB.toFixed(2)),
+      total_documents: allDocs.length,
+    });
+
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -112,7 +165,6 @@ export default function DocumentCenter() {
     }
   };
 
-  // Group documents into Intelligent Shelves
   const groupDocsByShelves = () => {
     const shelves: Record<string, DocumentItem[]> = {};
     realDocs.forEach((doc) => {
@@ -168,10 +220,9 @@ export default function DocumentCenter() {
         </div>
       </div>
 
-      {/* Action Bar: Custom Categories Filter & View Mode Switcher */}
+      {/* Action Bar */}
       <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          {/* Search Box */}
           <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
             <input
@@ -192,7 +243,6 @@ export default function DocumentCenter() {
               <span>Upload Document</span>
             </button>
 
-            {/* Layout View Toggles */}
             <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1">
               <button
                 onClick={() => setViewMode("shelves")}
@@ -231,7 +281,7 @@ export default function DocumentCenter() {
           </div>
         </div>
 
-        {/* Dynamic Category Filter Pills (Including Custom Categories!) */}
+        {/* Dynamic Category Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-2 border-t border-slate-100">
           <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mr-1 flex items-center gap-1">
             <Filter className="w-3 h-3 text-emerald-600" /> Categories:
@@ -259,7 +309,6 @@ export default function DocumentCenter() {
           Accessing encrypted document vault...
         </div>
       ) : realDocs.length === 0 ? (
-        /* Empty State */
         <div className="p-16 rounded-3xl bg-white border border-slate-200 text-center space-y-4 shadow-sm">
           <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
             <Inbox className="w-8 h-8" />
@@ -279,14 +328,12 @@ export default function DocumentCenter() {
           </button>
         </div>
       ) : viewMode === "shelves" ? (
-        /* Executive Intelligent Shelving System */
         <div className="space-y-8">
           {Object.entries(shelvesData).map(([shelfName, shelfDocs]) => (
             <div
               key={shelfName}
               className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4 relative overflow-hidden"
             >
-              {/* Shelf Header Drawer */}
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
@@ -304,7 +351,6 @@ export default function DocumentCenter() {
                 </div>
               </div>
 
-              {/* Shelf File Items Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {shelfDocs.map((doc) => (
                   <div
@@ -342,7 +388,6 @@ export default function DocumentCenter() {
           ))}
         </div>
       ) : viewMode === "grid" ? (
-        /* Standard Grid View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {realDocs.map((doc) => (
             <div
@@ -377,7 +422,6 @@ export default function DocumentCenter() {
           ))}
         </div>
       ) : (
-        /* Executive Ledger Table View */
         <div className="rounded-3xl bg-white border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">

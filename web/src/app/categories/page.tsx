@@ -1,13 +1,23 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { FolderTree, Folder, FileText, ChevronRight, Plus, Inbox, Tag } from "lucide-react";
+import { Folder, FileText, ChevronRight, Plus, Inbox } from "lucide-react";
 import DocumentInspector from "../../components/documents/DocumentInspector";
 import UploadModal from "../../components/documents/UploadModal";
 import { DocumentItem } from "../../types";
 
+const INITIAL_CATEGORIES = [
+  { id: "cat-1", name: "Legal", description: "Contracts, NDAs, Master Services Agreements", docCount: 0 },
+  { id: "cat-2", name: "Finance", description: "Invoices, Audits, Financial Statements", docCount: 0 },
+  { id: "cat-3", name: "Human Resources", description: "Employee Records & Offer Letters", docCount: 0 },
+  { id: "cat-4", name: "Licenses", description: "Government permits & trade certifications", docCount: 0 },
+  { id: "cat-5", name: "Taxes", description: "GST returns, Tax filings & Receipts", docCount: 0 },
+  { id: "cat-6", name: "Purchase", description: "Vendor POs & Procurement orders", docCount: 0 },
+  { id: "cat-7", name: "Intellectual Property", description: "Patents, Trademarks & Designs", docCount: 0 },
+];
+
 export default function CategoriesExplorer() {
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>(INITIAL_CATEGORIES);
   const [activeCategory, setActiveCategory] = useState<string>("Legal");
   const [categoryDocs, setCategoryDocs] = useState<DocumentItem[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
@@ -18,6 +28,7 @@ export default function CategoriesExplorer() {
   const [loading, setLoading] = useState(true);
 
   const getUserEmail = () => {
+    if (typeof window === "undefined") return "guest@arkivex.io";
     const getCookie = (name: string) => {
       const value = `; ${document.cookie}`;
       const parts = value.split(`; ${name}=`);
@@ -34,67 +45,92 @@ export default function CategoriesExplorer() {
     return "guest@arkivex.io";
   };
 
-  const fetchCategories = async () => {
-    try {
-      const userEmail = getUserEmail();
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/categories?user_email=${encodeURIComponent(userEmail)}`);
-      const data = await res.json();
-      setCategories(data.categories || []);
-    } catch (e) {
-      console.error("Failed to fetch categories", e);
-    }
-  };
-
-  const fetchCategoryDocs = async () => {
+  const fetchCategoriesAndDocs = async () => {
     setLoading(true);
+    const userEmail = getUserEmail();
+
+    let allCategories = [...INITIAL_CATEGORIES];
+
+    // Read custom saved categories from localStorage
     try {
-      const userEmail = getUserEmail();
-      const res = await fetch(
-        `http://127.0.0.1:8000/api/v1/documents?user_email=${encodeURIComponent(userEmail)}&category=${encodeURIComponent(activeCategory)}`
-      );
-      const data = await res.json();
-      setCategoryDocs(data.documents || []);
-    } catch (e) {
-      console.error("Failed to fetch category documents", e);
-    } finally {
-      setLoading(false);
+      const savedCats = JSON.parse(localStorage.getItem(`arkivex_categories_${userEmail}`) || "[]");
+      savedCats.forEach((cName: string, idx: number) => {
+        if (!allCategories.some((c) => c.name === cName)) {
+          allCategories.push({
+            id: `custom-cat-${idx}`,
+            name: cName,
+            description: "Custom user category",
+            docCount: 0,
+            isCustom: true,
+          });
+        }
+      });
+    } catch (e) {}
+
+    // Read all user documents from localStorage
+    let allUserDocs: DocumentItem[] = [];
+    try {
+      allUserDocs = JSON.parse(localStorage.getItem(`arkivex_user_docs_${userEmail}`) || "[]");
+    } catch (e) {}
+
+    // Fetch from backend if local API is accessible
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/api/v1/categories?user_email=${encodeURIComponent(userEmail)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.categories) {
+            data.categories.forEach((c: any) => {
+              if (!allCategories.some((ac) => ac.name === c.name)) {
+                allCategories.push({
+                  id: c.id,
+                  name: c.name,
+                  description: c.description || "Custom category",
+                  docCount: 0,
+                  isCustom: true,
+                });
+              }
+            });
+          }
+        }
+      } catch (e) {}
     }
+
+    // Count document counts per category
+    allCategories.forEach((cat) => {
+      cat.docCount = allUserDocs.filter((d) => d.category === cat.name).length;
+    });
+
+    setCategories(allCategories);
+
+    // Filter documents for the active category
+    const activeDocs = allUserDocs.filter((d) => d.category === activeCategory);
+    setCategoryDocs(activeDocs);
+    setLoading(false);
   };
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  useEffect(() => {
-    fetchCategoryDocs();
+    fetchCategoriesAndDocs();
   }, [activeCategory]);
 
   const handleCreateCategory = async () => {
     if (!newCatName.trim()) return;
+    const catName = newCatName.trim();
     const userEmail = getUserEmail();
 
     try {
-      const formData = new FormData();
-      formData.append("name", newCatName.trim());
-      formData.append("description", newCatDesc.trim() || "Custom category");
-      formData.append("user_email", userEmail);
-
-      const res = await fetch("http://127.0.0.1:8000/api/v1/categories", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.category?.name) {
-        setActiveCategory(data.category.name);
-        fetchCategories();
-        setNewCatName("");
-        setNewCatDesc("");
-        setNewCatModalOpen(false);
+      const saved = JSON.parse(localStorage.getItem(`arkivex_categories_${userEmail}`) || "[]");
+      if (!saved.includes(catName)) {
+        saved.push(catName);
+        localStorage.setItem(`arkivex_categories_${userEmail}`, JSON.stringify(saved));
       }
-    } catch (e) {
-      console.error("Failed to create category", e);
-    }
+    } catch (e) {}
+
+    setActiveCategory(catName);
+    setNewCatName("");
+    setNewCatDesc("");
+    setNewCatModalOpen(false);
+    fetchCategoriesAndDocs();
   };
 
   return (
@@ -162,7 +198,7 @@ export default function CategoriesExplorer() {
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div>
                 <h3 className="font-heading font-extrabold text-lg text-slate-900">{activeCategory} Category</h3>
-                <p className="text-xs text-slate-500 font-medium">Real documents stored under this category</p>
+                <p className="text-xs text-slate-500 font-medium font-sans">Real documents stored under this category</p>
               </div>
               <span className="px-3 py-1 text-xs font-extrabold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                 {categoryDocs.length} Documents
@@ -198,7 +234,7 @@ export default function CategoriesExplorer() {
                       <FileText className="w-5 h-5 text-emerald-600" />
                       <div>
                         <span className="text-xs font-extrabold text-slate-900 block">{doc.title}</span>
-                        <span className="text-[10px] text-slate-500 font-semibold">
+                        <span className="text-[10px] text-slate-500 font-semibold font-sans">
                           {doc.owner} • {doc.fileSize}
                         </span>
                       </div>
@@ -260,7 +296,7 @@ export default function CategoriesExplorer() {
       )}
 
       <DocumentInspector document={selectedDoc} onClose={() => setSelectedDoc(null)} />
-      <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} onUploadSuccess={fetchCategoryDocs} />
+      <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} onUploadSuccess={fetchCategoriesAndDocs} />
     </div>
   );
 }
