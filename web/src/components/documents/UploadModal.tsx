@@ -165,59 +165,66 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
 
     const userEmail = getUserEmail();
     const fileSizeFormatted = (file.size / (1024 * 1024)).toFixed(2) + " MB";
-    const localFileUrl = URL.createObjectURL(file);
 
-    const newDocItem = {
-      id: "doc-" + Math.random().toString(36).substring(2, 9),
-      title: file.name,
-      fileSize: fileSizeFormatted,
-      fileType: file.name.split(".").pop()?.toUpperCase() || "PDF",
-      category: selectedCategory,
-      uploadedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      updatedAt: "Just now",
-      owner: userEmail.split("@")[0],
-      user_email: userEmail,
-      isLocked: false,
-      version: "v1.0 (Original)",
-      fileUrl: localFileUrl,
-      aiSummary: `Uploaded under "${selectedCategory}" category. Processed with OCR text extraction and SHA-256 cloud encryption.`,
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const dataUrl = (event.target?.result as string) || URL.createObjectURL(file);
+
+      const newDocItem = {
+        id: "doc-" + Math.random().toString(36).substring(2, 9),
+        title: file.name,
+        fileSize: fileSizeFormatted,
+        fileType: file.name.split(".").pop()?.toUpperCase() || "PDF",
+        category: selectedCategory,
+        uploadedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        updatedAt: "Just now",
+        owner: userEmail.split("@")[0],
+        user_email: userEmail,
+        isLocked: false,
+        version: "v1.0 (Original)",
+        fileUrl: dataUrl,
+        storagePath: dataUrl,
+        aiSummary: `Uploaded under "${selectedCategory}" category. Processed with OCR text extraction and SHA-256 cloud encryption.`,
+      };
+
+      let serverDoc = null;
+
+      if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("category", selectedCategory);
+          formData.append("user_email", userEmail);
+          formData.append("security_level", "Confidential");
+
+          const response = await fetch("http://127.0.0.1:8000/api/v1/documents/upload", {
+            method: "POST",
+            body: formData,
+          });
+          if (response.ok) {
+            const data = await response.json();
+            serverDoc = data.document;
+          }
+        } catch (err) {}
+      }
+
+      const docToSave = serverDoc || newDocItem;
+
+      // Save document to client localStorage repository
+      try {
+        const existingDocs = JSON.parse(localStorage.getItem(`arkivex_user_docs_${userEmail}`) || "[]");
+        existingDocs.unshift(docToSave);
+        localStorage.setItem(`arkivex_user_docs_${userEmail}`, JSON.stringify(existingDocs));
+      } catch (e) {}
+
+      clearInterval(interval);
+      setCurrentStepIndex(steps.length - 1);
+      setUploadedDocResult(docToSave);
+      setStep("complete");
+      if (onUploadSuccess) onUploadSuccess();
     };
 
-    let serverDoc = null;
-
-    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("category", selectedCategory);
-        formData.append("user_email", userEmail);
-        formData.append("security_level", "Confidential");
-
-        const response = await fetch("http://127.0.0.1:8000/api/v1/documents/upload", {
-          method: "POST",
-          body: formData,
-        });
-        if (response.ok) {
-          const data = await response.json();
-          serverDoc = data.document;
-        }
-      } catch (err) {}
-    }
-
-    const docToSave = serverDoc || newDocItem;
-
-    // Save document to client localStorage repository
-    try {
-      const existingDocs = JSON.parse(localStorage.getItem(`arkivex_user_docs_${userEmail}`) || "[]");
-      existingDocs.unshift(docToSave);
-      localStorage.setItem(`arkivex_user_docs_${userEmail}`, JSON.stringify(existingDocs));
-    } catch (e) {}
-
-    clearInterval(interval);
-    setCurrentStepIndex(steps.length - 1);
-    setUploadedDocResult(docToSave);
-    setStep("complete");
-    if (onUploadSuccess) onUploadSuccess();
+    reader.readAsDataURL(file);
   };
 
   const handleReset = () => {

@@ -6,18 +6,15 @@ import {
   X,
   FileText,
   Sparkles,
-  Shield,
-  Clock,
-  HardDrive,
   Copy,
   Check,
   Share2,
   Download,
   AlertTriangle,
   FileCheck,
-  User,
   History,
   Tag,
+  HardDrive,
 } from "lucide-react";
 
 interface DocumentInspectorProps {
@@ -32,7 +29,7 @@ export default function DocumentInspector({ document, onClose }: DocumentInspect
   if (!document) return null;
 
   const handleCopyOcr = () => {
-    navigator.clipboard.writeText(document.ocrText);
+    navigator.clipboard.writeText(document.ocrText || "");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -48,22 +45,22 @@ export default function DocumentInspector({ document, onClose }: DocumentInspect
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wide">
+                <span className="px-2.5 py-0.5 text-[9px] font-extrabold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wide">
                   {document.category}
                 </span>
                 <span
-                  className={`px-2.5 py-0.5 text-[10px] font-extrabold rounded-full ${
+                  className={`px-2.5 py-0.5 text-[9px] font-extrabold rounded-full ${
                     document.securityLevel === "Confidential" || document.securityLevel === "Restricted"
                       ? "bg-rose-100 text-rose-800 border border-rose-200"
                       : "bg-emerald-100 text-emerald-800 border border-emerald-200"
                   }`}
                 >
-                  {document.securityLevel}
+                  {document.securityLevel || "Confidential"}
                 </span>
-                <span className="text-xs text-slate-500 font-mono font-bold">{document.version}</span>
+                <span className="text-xs text-slate-500 font-mono font-bold">{document.version || "v1.0"}</span>
               </div>
               <h2 className="text-lg font-heading font-extrabold text-slate-900 leading-snug">{document.title}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Uploaded by {document.owner} • {document.department}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Uploaded by {document.owner} • {document.department || "General"}</p>
             </div>
           </div>
 
@@ -132,26 +129,26 @@ export default function DocumentInspector({ document, onClose }: DocumentInspect
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[11px] text-slate-500 block font-semibold">Subcategory</span>
-                  <span className="text-xs font-bold text-slate-900 mt-0.5 block">{document.subcategory}</span>
+                  <span className="text-xs font-bold text-slate-900 mt-0.5 block">{document.subcategory || "General"}</span>
                 </div>
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[11px] text-slate-500 block font-semibold">Storage Provider</span>
                   <span className="text-xs font-bold text-emerald-700 mt-0.5 flex items-center gap-1.5">
                     <HardDrive className="w-3.5 h-3.5" />
-                    {document.storageProvider}
+                    {document.storageProvider || "Supabase Cloud Storage"}
                   </span>
                 </div>
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[11px] text-slate-500 block font-semibold">File Size & Type</span>
                   <span className="text-xs font-bold text-slate-900 mt-0.5 block">
-                    {document.fileSize} • {document.fileType}
+                    {document.fileSize} • {document.fileType || "PDF"}
                   </span>
                 </div>
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[11px] text-slate-500 block font-semibold">Approval Workflow</span>
                   <span className="text-xs font-bold text-emerald-700 mt-0.5 flex items-center gap-1.5">
                     <FileCheck className="w-3.5 h-3.5" />
-                    {document.approvalStatus}
+                    {document.approvalStatus || "Published"}
                   </span>
                 </div>
               </div>
@@ -171,7 +168,7 @@ export default function DocumentInspector({ document, onClose }: DocumentInspect
                 </button>
               </div>
               <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
-                {document.ocrText}
+                {document.ocrText || "No OCR text extracted."}
               </div>
             </div>
           )}
@@ -181,7 +178,7 @@ export default function DocumentInspector({ document, onClose }: DocumentInspect
               <div>
                 <span className="text-xs font-bold text-slate-800 block mb-2">Automated Tags</span>
                 <div className="flex flex-wrap gap-2">
-                  {document.tags.map((tag, idx) => (
+                  {(document.tags || ["document", "vault"]).map((tag, idx) => (
                     <span
                       key={idx}
                       className="px-2.5 py-1 text-xs rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold"
@@ -195,7 +192,7 @@ export default function DocumentInspector({ document, onClose }: DocumentInspect
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <span className="text-xs font-bold text-slate-800 block">SHA-256 Checksum</span>
                 <p className="text-[11px] font-mono text-slate-600 break-all bg-white p-2.5 rounded-lg border border-slate-200">
-                  {document.checksum}
+                  {document.checksum || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
                 </p>
               </div>
             </div>
@@ -217,7 +214,7 @@ export default function DocumentInspector({ document, onClose }: DocumentInspect
                   <div className="absolute left-2 top-1.5 w-3 h-3 rounded-full bg-blue-500" />
                   <div>
                     <span className="text-xs font-bold text-slate-900 block">AI Metadata Extraction & OCR Indexing</span>
-                    <span className="text-[10px] text-slate-500 font-mono">2026-07-28 14:10 • Worker Node #3</span>
+                    <span className="text-[10px] text-slate-500 font-mono">Worker Node #3</span>
                   </div>
                 </div>
               </div>

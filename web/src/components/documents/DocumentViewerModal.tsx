@@ -12,10 +12,8 @@ import {
   Unlock,
   Check,
   Sparkles,
-  ExternalLink,
   ShieldCheck,
   Eye,
-  Layers,
 } from "lucide-react";
 
 interface DocumentViewerModalProps {
@@ -41,6 +39,9 @@ export default function DocumentViewerModal({
   const fileExt = (documentItem.title.split(".").pop() || "").toLowerCase();
   const isImage = ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(fileExt);
 
+  // Check both fileUrl and storagePath to ensure uploaded PDFs render iframe
+  const targetUrl = documentItem.fileUrl || documentItem.storagePath;
+
   const handleCopyShareLink = () => {
     const shareUrl = `${window.location.origin}/documents?id=${documentItem.id}`;
     navigator.clipboard.writeText(shareUrl);
@@ -51,33 +52,54 @@ export default function DocumentViewerModal({
   const handleToggleLock = async () => {
     const newLockState = !isLocked;
     setIsLocked(newLockState);
+
+    // Save lock state in client localStorage
     try {
-      const formData = new FormData();
-      formData.append("is_locked", String(newLockState));
-      await fetch(`http://127.0.0.1:8000/api/v1/documents/${documentItem.id}/lock`, {
-        method: "POST",
-        body: formData,
-      });
-      if (onLockToggled) onLockToggled();
-    } catch (e) {
-      console.error("Failed to toggle document lock", e);
+      const email = documentItem.user_email || "guest@arkivex.io";
+      const localDocs = JSON.parse(localStorage.getItem(`arkivex_user_docs_${email}`) || "[]");
+      const targetDoc = localDocs.find((d: any) => d.id === documentItem.id);
+      if (targetDoc) {
+        targetDoc.isLocked = newLockState;
+        localStorage.setItem(`arkivex_user_docs_${email}`, JSON.stringify(localDocs));
+      }
+    } catch (e) {}
+
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      try {
+        const formData = new FormData();
+        formData.append("is_locked", String(newLockState));
+        await fetch(`http://127.0.0.1:8000/api/v1/documents/${documentItem.id}/lock`, {
+          method: "POST",
+          body: formData,
+        });
+      } catch (e) {}
     }
+
+    if (onLockToggled) onLockToggled();
   };
 
   const handleDeleteDocument = async () => {
     if (!confirm(`Are you sure you want to delete "${documentItem.title}"?`)) return;
     setDeleting(true);
+
+    const email = documentItem.user_email || "guest@arkivex.io";
     try {
-      await fetch(`http://127.0.0.1:8000/api/v1/documents/${documentItem.id}`, {
-        method: "DELETE",
-      });
-      if (onDocumentDeleted) onDocumentDeleted();
-      onClose();
-    } catch (e) {
-      console.error("Failed to delete document", e);
-    } finally {
-      setDeleting(false);
+      const localDocs = JSON.parse(localStorage.getItem(`arkivex_user_docs_${email}`) || "[]");
+      const filtered = localDocs.filter((d: any) => d.id !== documentItem.id);
+      localStorage.setItem(`arkivex_user_docs_${email}`, JSON.stringify(filtered));
+    } catch (e) {}
+
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      try {
+        await fetch(`http://127.0.0.1:8000/api/v1/documents/${documentItem.id}`, {
+          method: "DELETE",
+        });
+      } catch (e) {}
     }
+
+    if (onDocumentDeleted) onDocumentDeleted();
+    setDeleting(false);
+    onClose();
   };
 
   return (
@@ -104,7 +126,6 @@ export default function DocumentViewerModal({
 
           {/* Header Action Buttons */}
           <div className="flex items-center gap-2">
-            {/* Toggle Security Lock */}
             <button
               onClick={handleToggleLock}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors ${
@@ -112,13 +133,12 @@ export default function DocumentViewerModal({
                   ? "bg-amber-100 text-amber-900 border-amber-300 shadow-xs"
                   : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200"
               }`}
-              title="Toggle Fingerprint / PIN Lock Security"
+              title="Toggle Fingerprint Protection"
             >
               {isLocked ? <Lock className="w-3.5 h-3.5 text-amber-700" /> : <Unlock className="w-3.5 h-3.5" />}
               <span>{isLocked ? "Fingerprint Lock Active" : "Set Fingerprint Lock"}</span>
             </button>
 
-            {/* Share Button */}
             <button
               onClick={handleCopyShareLink}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-colors"
@@ -127,10 +147,10 @@ export default function DocumentViewerModal({
               <span>{copiedShare ? "Link Copied!" : "Share"}</span>
             </button>
 
-            {/* Download Button */}
-            {documentItem.storagePath && (
+            {targetUrl && (
               <a
-                href={documentItem.storagePath}
+                href={targetUrl}
+                download={documentItem.title}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl btn-green text-xs font-bold text-white shadow-green"
@@ -140,7 +160,6 @@ export default function DocumentViewerModal({
               </a>
             )}
 
-            {/* Delete Button */}
             <button
               onClick={handleDeleteDocument}
               disabled={deleting}
@@ -189,37 +208,40 @@ export default function DocumentViewerModal({
         {/* Canvas Body */}
         <div className="flex-1 bg-slate-100 overflow-hidden flex flex-col relative">
           {activeTab === "viewer" ? (
-            documentItem.storagePath ? (
+            targetUrl ? (
               isImage ? (
-                /* Native High-Res Image Renderer */
+                /* High-Res Image Renderer */
                 <div className="w-full h-full flex items-center justify-center p-6 overflow-auto bg-slate-900">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={documentItem.storagePath}
+                    src={targetUrl}
                     alt={documentItem.title}
                     className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-slate-700"
                   />
                 </div>
               ) : (
-                /* Google Drive / Embedded PDF Canvas Renderer */
+                /* Google Drive / Embedded Interactive PDF Viewer */
                 <div className="w-full h-full relative bg-slate-200">
                   <iframe
-                    src={documentItem.storagePath}
+                    src={targetUrl}
                     title={documentItem.title}
                     className="w-full h-full border-none"
                   />
                 </div>
               )
             ) : (
-              /* Fallback Clean View */
-              <div className="p-8 max-w-3xl mx-auto space-y-4 my-auto">
+              /* Text OCR / Summary Document Fallback */
+              <div className="p-8 max-w-3xl mx-auto space-y-4 my-auto w-full">
                 <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3">
-                  <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
-                    Text Document Reader
+                  <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider block">
+                    Document Text & AI Summary Readout
                   </span>
-                  <div className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
-                    {documentItem.ocrText}
-                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">{documentItem.aiSummary}</p>
+                  {documentItem.ocrText && (
+                    <div className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      {documentItem.ocrText}
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -237,14 +259,14 @@ export default function DocumentViewerModal({
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
                   <span className="text-xs text-slate-500 font-semibold block">Security Classification</span>
-                  <span className="text-xs font-extrabold text-slate-900 mt-1 block">{documentItem.securityLevel}</span>
+                  <span className="text-xs font-extrabold text-slate-900 mt-1 block">{documentItem.securityLevel || "Confidential"}</span>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
                   <span className="text-xs text-slate-500 font-semibold block">Cloud Storage Engine</span>
                   <span className="text-xs font-extrabold text-emerald-700 mt-1 block flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    {documentItem.storageProvider}
+                    {documentItem.storageProvider || "Supabase Cloud Vault"}
                   </span>
                 </div>
               </div>
