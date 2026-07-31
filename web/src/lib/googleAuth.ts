@@ -3,7 +3,14 @@ export const triggerGoogleOAuth = () => {
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
     "247412511264-kl0522e0itc0j7odlvkqqvd7gobjubpl.apps.googleusercontent.com";
 
-  const redirectUri = encodeURIComponent("http://localhost:3000/api/auth/callback/google");
+  const currentOrigin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://arkivex.developerbilaspur.in";
+
+  const redirectUri = encodeURIComponent(
+    `${currentOrigin}/api/auth/callback/google`
+  );
   const scope = encodeURIComponent("openid email profile");
   const responseType = "code";
 
